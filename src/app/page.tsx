@@ -1,66 +1,56 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import { prisma } from '../lib/prisma';
+import DashboardClient from '../components/DashboardClient';
+import { getServerSession } from 'next-auth';
+import { authOptions } from './api/auth/[...nextauth]/route';
 
-export default function Home() {
+import LandingClient from '../components/LandingClient';
+
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return <LandingClient />;
+  }
+
+  const patterns = await prisma.pattern.findMany({
+    where: { userId: session.user.id },
+    include: {
+      questions: {
+        orderBy: { id: 'asc' }
+      }
+    },
+    orderBy: { createdAt: 'asc' }
+  });
+
+  const now = new Date();
+  for (const pattern of patterns) {
+    for (const q of pattern.questions) {
+      if (!(q as any).isPaused && q.nextReviewDate < now && q.status !== 'Need to revise') {
+        let newStatus = q.status;
+        if (q.status === 'Solid') newStatus = 'Still Solid';
+        else if (q.status === 'Still Solid') newStatus = 'Maybe U remember';
+        else if (q.status === 'Maybe U remember') newStatus = 'Need to revise';
+
+        const INTERVALS = [1, 3, 7, 14, 30, 60];
+        const currentInterval = q.revisionStep > 0 ? INTERVALS[Math.min(q.revisionStep - 1, INTERVALS.length - 1)] : 1;
+        const gracePeriod = Math.max(1, Math.floor(currentInterval / 3));
+
+        const nextDate = new Date();
+        nextDate.setDate(nextDate.getDate() + gracePeriod);
+
+        await prisma.question.update({
+          where: { id: q.id },
+          data: { status: newStatus, nextReviewDate: nextDate }
+        });
+        q.status = newStatus;
+        q.nextReviewDate = nextDate;
+      }
+    }
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main>
+      <DashboardClient initialPatterns={patterns} userId={session.user.id} userName={session.user.name || ''} userImage={session.user.image || ''} />
+    </main>
   );
 }
