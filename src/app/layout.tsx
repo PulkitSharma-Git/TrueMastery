@@ -16,9 +16,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DSA Revision Tracker",
   description: "Track your DSA revision with Spaced Repetition",
-  icons: {
-    icon: '/favicon.png',
-  },
 };
 
 export default function RootLayout({
