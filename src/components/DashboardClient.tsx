@@ -317,17 +317,25 @@ export default function DashboardClient({
             <p style={{marginTop: '20px', color: 'var(--text-secondary)'}}>Your mathematically weighted mastery score across {totalQuestions} questions.</p>
             
             {showMasteryInfo && (
-              <div style={{ position: 'absolute', top: '45px', right: '15px', background: '#222', border: '1px solid #444', borderRadius: '8px', padding: '20px', width: '350px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', zIndex: 10, textAlign: 'left' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ fontSize: '15px', margin: 0, color: 'var(--color-green)' }}>True Mastery Algorithm</h3>
-                  <button onClick={() => setShowMasteryInfo(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '14px' }}>✖</button>
+              <div style={{ position: 'absolute', top: '45px', right: '15px', background: '#222', border: '1px solid #444', borderRadius: '8px', padding: '20px', width: '380px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', zIndex: 10, textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                  <h3 style={{ fontSize: '15px', margin: 0, color: '#fff' }}>The Science of Memory</h3>
+                  <button onClick={() => setShowMasteryInfo(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '14px', marginTop: '-2px' }}>✖</button>
                 </div>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0 }}>
-                  A question is only 100% mastered if it survives a full 60-day interval.<br/><br/>
-                  <strong>Weighted Factors:</strong><br/>
-                  • <strong>Longevity (75%)</strong>: Day 1 (10pt) → Day 3 (20pt) → Day 7 (30pt) → Day 14 (45pt) → Day 30 (60pt) → Day 60 (75pt).<br/>
-                  • <strong>Confidence (25%)</strong>: Dark Green (+25) | Light Green (+18) | Yellow (+8) | Red (0).
+                
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
+                  <strong>Spaced Repetition (Ebbinghaus Forgetting Curve):</strong> Science proves that human memory decays exponentially. To build permanent neural pathways, you must review information at precisely expanding intervals just as you're about to forget it (Days 1, 3, 7, 14, 30, 60).
                 </p>
+
+                <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
+                  <h3 style={{ fontSize: '15px', margin: '0 0 10px 0', color: 'var(--color-green)' }}>True Mastery Algorithm</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0 }}>
+                    This algorithm mathematically eliminates the "illusion of competence". A question is only 100% mastered if it survives a full 60-day interval.<br/><br/>
+                    <strong>Weighted Factors:</strong><br/>
+                    • <strong>Longevity (75%)</strong>: Day 1 (10pt) → Day 3 (20pt) → Day 7 (30pt) → Day 14 (45pt) → Day 30 (60pt) → Day 60 (75pt).<br/>
+                    • <strong>Confidence (25%)</strong>: Dark Green (+25) | Light Green (+18) | Yellow (+8) | Red (0).
+                  </p>
+                </div>
               </div>
             )}
           </div>
