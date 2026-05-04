@@ -246,6 +246,7 @@ export default function DashboardClient({
       <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: '1px solid #333', marginBottom: '30px' }}>
         <h1 className="title" style={{ margin: 0, fontSize: '24px' }}>DSA Revision Tracker</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <a href="/feedback" className="btn-secondary" style={{ textDecoration: 'none', marginRight: '10px' }}>Bug/Feature Request</a>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {userImage && <img src={userImage} alt="Avatar" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />}
             <span style={{ fontWeight: 'bold' }}>{userName.split(' ')[0]}</span>
@@ -300,7 +301,7 @@ export default function DashboardClient({
         </div>
 
         <div className="overview-container">
-          <div className="card stat-card" style={{ maxWidth: '600px', position: 'relative' }}>
+          <div className="card stat-card" style={{ maxWidth: '600px', position: 'relative', zIndex: 50 }}>
             <button 
               onClick={() => setShowMasteryInfo(!showMasteryInfo)} 
               style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
