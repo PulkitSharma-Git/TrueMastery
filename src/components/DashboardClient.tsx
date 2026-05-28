@@ -189,6 +189,9 @@ export default function DashboardClient({
   const totalScore = patterns.flatMap(p => p.questions).reduce((acc, q) => acc + calculateQuestionScore(q), 0);
   const masteryPercentage = totalQuestions === 0 ? 0 : Math.round(totalScore / totalQuestions);
 
+
+
+
   const handleSeedA2Z = async () => {
     setIsSeeding(true);
     try {
@@ -263,7 +266,7 @@ export default function DashboardClient({
 
       {activeTab === 'overview' && (
         <>
-        <div style={{ maxWidth: '600px', margin: '0 auto 30px auto', position: 'relative' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto 30px auto', position: 'relative', zIndex: 60 }}>
           <input 
             type="text" 
             placeholder="Search questions quickly..." 
@@ -272,7 +275,7 @@ export default function DashboardClient({
             style={{ width: '100%', padding: '15px 20px', borderRadius: '8px', border: '1px solid #444', background: '#222', color: '#fff', fontSize: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}
           />
           {searchQuery.trim() !== '' && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#2a2a2a', border: '1px solid #444', borderRadius: '8px', marginTop: '10px', maxHeight: '350px', overflowY: 'auto', zIndex: 20, boxShadow: '0 15px 40px rgba(0,0,0,0.8)' }}>
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#2a2a2a', border: '1px solid #444', borderRadius: '8px', marginTop: '10px', maxHeight: '350px', overflowY: 'auto', zIndex: 90, boxShadow: '0 15px 40px rgba(0,0,0,0.8)' }}>
               {patterns.flatMap(p => p.questions).filter(q => q.title.toLowerCase().includes(searchQuery.toLowerCase())).map(q => (
                 <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #333' }}>
                   <div style={{ flex: 1, marginRight: '15px' }}>
@@ -298,9 +301,7 @@ export default function DashboardClient({
               )}
             </div>
           )}
-        </div>
-
-        <div className="overview-container">
+        </div>        <div className="overview-container">
           <div className="card stat-card" style={{ maxWidth: '600px', position: 'relative', zIndex: 50 }}>
             <button 
               onClick={() => setShowMasteryInfo(!showMasteryInfo)} 
