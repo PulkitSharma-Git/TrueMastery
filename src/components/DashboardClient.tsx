@@ -31,6 +31,7 @@ export default function DashboardClient({
   const [editingPatternName, setEditingPatternName] = useState('');
 
   const [showMasteryInfo, setShowMasteryInfo] = useState(false);
+  const [showRawScore, setShowRawScore] = useState(false);
   const [showGridInfo, setShowGridInfo] = useState(false);
   const [showPatternInfo, setShowPatternInfo] = useState(false);
   
@@ -189,6 +190,32 @@ export default function DashboardClient({
   const totalScore = patterns.flatMap(p => p.questions).reduce((acc, q) => acc + calculateQuestionScore(q), 0);
   const masteryPercentage = totalQuestions === 0 ? 0 : Math.round(totalScore / totalQuestions);
 
+  const getScoreBreakdown = () => {
+    let longevity = 0;
+    let confidence = 0;
+    patterns.flatMap(p => p.questions).forEach(q => {
+      let longevityScore = 0;
+      if (q.revisionStep >= 6) longevityScore = 75;
+      else if (q.revisionStep === 5) longevityScore = 60;
+      else if (q.revisionStep === 4) longevityScore = 45;
+      else if (q.revisionStep === 3) longevityScore = 30;
+      else if (q.revisionStep === 2) longevityScore = 20;
+      else if (q.revisionStep === 1) longevityScore = 10;
+      
+      let colorScore = 0;
+      if (q.status === 'Solid') colorScore = 25;
+      else if (q.status === 'Still Solid') colorScore = 18;
+      else if (q.status === 'Maybe U remember') colorScore = 8;
+      
+      longevity += longevityScore;
+      confidence += colorScore;
+    });
+    return { longevity, confidence };
+  };
+
+  const { longevity: totalLongevity, confidence: totalConfidence } = getScoreBreakdown();
+
+
 
 
 
@@ -312,8 +339,30 @@ export default function DashboardClient({
             </button>
             <h2>True Mastery</h2>
             <div className="pie-chart" style={{ background: `conic-gradient(var(--color-green) ${masteryPercentage}%, var(--color-red) 0)` }}>
-              <div className="pie-inner">
-                <span className="pie-text">{masteryPercentage}%</span>
+              <div className="pie-inner" style={{ padding: 0, overflow: 'hidden' }}>
+                <div 
+                  className={`flip-container ${showRawScore ? 'flipped' : ''}`}
+                  onClick={() => setShowRawScore(!showRawScore)}
+                >
+                  <div className="flipper">
+                    <div className="front">
+                      <span className="pie-text">{masteryPercentage}%</span>
+                    </div>
+                    <div className="back" style={{ padding: '10px' }}>
+                      <div style={{ fontSize: '1.25rem', fontFamily: 'var(--font-heading)', color: '#fff', letterSpacing: '-0.02em' }}>
+                        {totalQuestions === 0 ? '0/0' : `${totalScore}/${totalQuestions * 100}`}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '8px', textAlign: 'center', lineHeight: '1.4' }}>
+                        <div style={{ borderBottom: '1px solid #333', paddingBottom: '3px', marginBottom: '3px' }}>
+                          Longevity: {totalQuestions === 0 ? '0' : totalLongevity}/{totalQuestions * 75}
+                        </div>
+                        <div>
+                          Confidence: {totalQuestions === 0 ? '0' : totalConfidence}/{totalQuestions * 25}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <p style={{marginTop: '20px', color: 'var(--text-secondary)'}}>Your mathematically weighted mastery score across {totalQuestions} questions.</p>
