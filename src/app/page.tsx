@@ -16,7 +16,10 @@ export default async function Home() {
     where: { userId: session.user.id },
     include: {
       questions: {
-        orderBy: { id: 'asc' }
+        orderBy: [
+          { position: 'asc' },
+          { id: 'asc' }
+        ]
       }
     },
     orderBy: { createdAt: 'asc' }

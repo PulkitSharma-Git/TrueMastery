@@ -23,10 +23,11 @@ export async function POST() {
 
       if (pattern.questions && pattern.questions.length > 0) {
         await prisma.question.createMany({
-          data: pattern.questions.map((q: any) => ({
+          data: pattern.questions.map((q: any, idx: number) => ({
             title: q.title,
             url: q.url,
             patternId: newPattern.id,
+            position: idx
           }))
         });
       }

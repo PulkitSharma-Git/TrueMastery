@@ -76,6 +76,7 @@ model Question {
   revisionStep   Int      @default(0)
   isPaused       Boolean  @default(false)
   createdAt      DateTime @default(now())
+  position       Int      @default(0)
 }
 
 model Feedback {

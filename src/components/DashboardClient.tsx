@@ -30,6 +30,15 @@ export default function DashboardClient({
   const [editingPatternId, setEditingPatternId] = useState<string | null>(null);
   const [editingPatternName, setEditingPatternName] = useState('');
 
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editingQuestionTitle, setEditingQuestionTitle] = useState('');
+  const [editingQuestionUrl, setEditingQuestionUrl] = useState('');
+  const [activeControlsCardId, setActiveControlsCardId] = useState<string | null>(null);
+  const [updatingQuestionSteps, setUpdatingQuestionSteps] = useState<{ [key: string]: boolean }>({});
+  const [isDraggingQuestionId, setIsDraggingQuestionId] = useState<string | null>(null);
+  const [dragOverQuestionId, setDragOverQuestionId] = useState<string | null>(null);
+  const [dragOverPatternId, setDragOverPatternId] = useState<string | null>(null);
+
   const [showMasteryInfo, setShowMasteryInfo] = useState(false);
   const [showRawScore, setShowRawScore] = useState(false);
   const [showGridInfo, setShowGridInfo] = useState(false);
@@ -166,6 +175,267 @@ export default function DashboardClient({
     } catch (e) {
       console.error(e);
       // rollback if needed
+    }
+  };
+
+  const handleEditQuestionStart = (question: Question) => {
+    setEditingQuestionId(question.id);
+    setEditingQuestionTitle(question.title);
+    setEditingQuestionUrl(question.url || '');
+  };
+
+  const handleSaveQuestionEdit = async (patternId: string, questionId: string) => {
+    if (!editingQuestionTitle.trim()) return;
+
+    setPatterns(prev => prev.map(p => p.id === patternId ? {
+      ...p,
+      questions: p.questions.map(q => q.id === questionId ? { ...q, title: editingQuestionTitle, url: editingQuestionUrl } : q)
+    } : p));
+    setEditingQuestionId(null);
+
+    try {
+      await fetch(`/api/questions/${questionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editingQuestionTitle, url: editingQuestionUrl })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleStepChange = async (patternId: string, questionId: string, currentStep: number, increment: boolean) => {
+    if (updatingQuestionSteps[questionId]) return;
+
+    const newStep = increment ? currentStep + 1 : currentStep - 1;
+    if (newStep < 0 || newStep > 6) return;
+
+    setUpdatingQuestionSteps(prev => ({ ...prev, [questionId]: true }));
+
+    const INTERVALS = [1, 3, 7, 14, 30, 60];
+    let newStatus = 'Need to revise';
+    let nextDate = new Date();
+    if (newStep > 0) {
+      const p = patterns.find(pat => pat.id === patternId);
+      const q = p?.questions.find(quest => quest.id === questionId);
+      if (q) {
+        newStatus = q.status === 'Need to revise' ? 'Still Solid' : q.status;
+      } else {
+        newStatus = 'Still Solid';
+      }
+      const daysToAdd = INTERVALS[Math.min(newStep - 1, INTERVALS.length - 1)];
+      nextDate.setDate(nextDate.getDate() + daysToAdd);
+    }
+
+    setPatterns(prev => prev.map(p => p.id === patternId ? {
+      ...p,
+      questions: p.questions.map(q => q.id === questionId ? { ...q, revisionStep: newStep, status: newStatus, nextReviewDate: nextDate } : q)
+    } : p));
+
+    try {
+      const res = await fetch(`/api/questions/${questionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revisionStep: newStep })
+      });
+      if (res.ok) {
+        const updatedQ = await res.json();
+        setPatterns(prev => prev.map(p => p.id === patternId ? {
+          ...p,
+          questions: p.questions.map(q => q.id === questionId ? updatedQ : q)
+        } : p));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdatingQuestionSteps(prev => ({ ...prev, [questionId]: false }));
+    }
+  };
+
+  const handleMoveWithinPattern = async (patternId: string, questionId: string, direction: 'up' | 'down') => {
+    const pattern = patterns.find(p => p.id === patternId);
+    if (!pattern) return;
+    const index = pattern.questions.findIndex(q => q.id === questionId);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === pattern.questions.length - 1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const reorderedQuestions = [...pattern.questions];
+    const temp = reorderedQuestions[index];
+    reorderedQuestions[index] = reorderedQuestions[targetIndex];
+    reorderedQuestions[targetIndex] = temp;
+
+    setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, questions: reorderedQuestions } : p));
+
+    try {
+      const res = await fetch(`/api/patterns/${patternId}/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionIds: reorderedQuestions.map(q => q.id) })
+      });
+      if (!res.ok) {
+        console.error("Failed to reorder in database");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMoveToPattern = async (sourcePatternId: string, questionId: string, targetPatternId: string) => {
+    const sourcePattern = patterns.find(p => p.id === sourcePatternId);
+    const targetPattern = patterns.find(p => p.id === targetPatternId);
+    if (!sourcePattern || !targetPattern) return;
+
+    const questionToMove = sourcePattern.questions.find(q => q.id === questionId);
+    if (!questionToMove) return;
+
+    setPatterns(prev => prev.map(p => {
+      if (p.id === sourcePatternId) {
+        return { ...p, questions: p.questions.filter(q => q.id !== questionId) };
+      }
+      if (p.id === targetPatternId) {
+        return { ...p, questions: [...p.questions, { ...questionToMove, patternId: targetPatternId }] };
+      }
+      return p;
+    }));
+
+    try {
+      const res = await fetch(`/api/questions/${questionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patternId: targetPatternId })
+      });
+      if (res.ok) {
+        const updatedQ = await res.json();
+        setPatterns(prev => prev.map(p => {
+          if (p.id === targetPatternId) {
+            return {
+              ...p,
+              questions: p.questions.map(q => q.id === questionId ? updatedQ : q)
+            };
+          }
+          return p;
+        }));
+      } else {
+        console.error("Failed to move to pattern in database");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetQuestionId: string, targetPatternId: string) => {
+    e.preventDefault();
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const { questionId: draggedQId, patternId: sourcePatId } = JSON.parse(dataStr);
+      if (draggedQId === targetQuestionId) return;
+
+      if (sourcePatId === targetPatternId) {
+        const pattern = patterns.find(p => p.id === targetPatternId);
+        if (!pattern) return;
+        const sourceIndex = pattern.questions.findIndex(q => q.id === draggedQId);
+        const targetIndex = pattern.questions.findIndex(q => q.id === targetQuestionId);
+        if (sourceIndex === -1 || targetIndex === -1) return;
+
+        const reorderedQuestions = [...pattern.questions];
+        const [movedQuestion] = reorderedQuestions.splice(sourceIndex, 1);
+        reorderedQuestions.splice(targetIndex, 0, movedQuestion);
+
+        setPatterns(prev => prev.map(p => p.id === targetPatternId ? { ...p, questions: reorderedQuestions } : p));
+
+        await fetch(`/api/patterns/${targetPatternId}/reorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questionIds: reorderedQuestions.map(q => q.id) })
+        });
+      } else {
+        const sourcePattern = patterns.find(p => p.id === sourcePatId);
+        const targetPattern = patterns.find(p => p.id === targetPatternId);
+        if (!sourcePattern || !targetPattern) return;
+
+        const questionToMove = sourcePattern.questions.find(q => q.id === draggedQId);
+        if (!questionToMove) return;
+
+        const targetIndex = targetPattern.questions.findIndex(q => q.id === targetQuestionId);
+
+        const newSourceQuestions = sourcePattern.questions.filter(q => q.id !== draggedQId);
+        const newTargetQuestions = [...targetPattern.questions];
+        if (targetIndex === -1) {
+          newTargetQuestions.push({ ...questionToMove, patternId: targetPatternId });
+        } else {
+          newTargetQuestions.splice(targetIndex, 0, { ...questionToMove, patternId: targetPatternId });
+        }
+
+        setPatterns(prev => prev.map(p => {
+          if (p.id === sourcePatId) return { ...p, questions: newSourceQuestions };
+          if (p.id === targetPatternId) return { ...p, questions: newTargetQuestions };
+          return p;
+        }));
+
+        const res = await fetch(`/api/questions/${draggedQId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patternId: targetPatternId })
+        });
+        if (res.ok) {
+          await fetch(`/api/patterns/${targetPatternId}/reorder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ questionIds: newTargetQuestions.map(q => q.id) })
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDropOnPattern = async (e: React.DragEvent, targetPatternId: string) => {
+    e.preventDefault();
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const { questionId: draggedQId, patternId: sourcePatId } = JSON.parse(dataStr);
+      if (sourcePatId === targetPatternId) return;
+
+      const sourcePattern = patterns.find(p => p.id === sourcePatId);
+      const targetPattern = patterns.find(p => p.id === targetPatternId);
+      if (!sourcePattern || !targetPattern) return;
+
+      const questionToMove = sourcePattern.questions.find(q => q.id === draggedQId);
+      if (!questionToMove) return;
+
+      setPatterns(prev => prev.map(p => {
+        if (p.id === sourcePatId) return { ...p, questions: p.questions.filter(q => q.id !== draggedQId) };
+        if (p.id === targetPatternId) return { ...p, questions: [...p.questions, { ...questionToMove, patternId: targetPatternId }] };
+        return p;
+      }));
+
+      const res = await fetch(`/api/questions/${draggedQId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patternId: targetPatternId })
+      });
+      if (res.ok) {
+        const updatedQ = await res.json();
+        setPatterns(prev => prev.map(p => {
+          if (p.id === targetPatternId) {
+            const reordered = p.questions.map(q => q.id === draggedQId ? updatedQ : q);
+            fetch(`/api/patterns/${targetPatternId}/reorder`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ questionIds: reordered.map(x => x.id) })
+            });
+            return { ...p, questions: reordered };
+          }
+          return p;
+        }));
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -569,7 +839,31 @@ export default function DashboardClient({
                 <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold', letterSpacing: '0px' }}>{p.questions.length} QUESTIONS</span>
               </summary>
               <div style={{ padding: '0 20px 20px 20px' }}>
-                <div className="grid" style={{ paddingTop: '20px', borderTop: '1px solid #333' }}>
+                <div 
+                  className="grid" 
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (isDraggingQuestionId) {
+                      setDragOverPatternId(p.id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverPatternId === p.id) {
+                      setDragOverPatternId(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    setDragOverPatternId(null);
+                    handleDropOnPattern(e, p.id);
+                  }}
+                  style={{ 
+                    paddingTop: '20px', 
+                    borderTop: '1px solid #333',
+                    background: dragOverPatternId === p.id ? 'rgba(46, 204, 113, 0.04)' : 'transparent',
+                    borderRadius: '8px',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                >
                   {p.questions.map(q => {
                   let statusClass = 'status-need';
                   if (q.status === 'Solid') statusClass = 'status-solid';
@@ -580,33 +874,220 @@ export default function DashboardClient({
                   const isPaused = (q as any).isPaused;
 
                   return (
-                    <div key={q.id} className={`card ${statusClass}`} style={{display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', boxShadow: '4px 4px 0px rgba(0,0,0,0.3)', border: '2px solid rgba(0,0,0,0.5)'}}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                        <a href={q.url || '#'} target="_blank" rel="noreferrer" style={{fontWeight: '900', fontSize: '1.1rem', lineHeight: '1.3', flex: 1}}>{q.title}</a>
-                        <div style={{ padding: '4px 8px', borderRadius: '12px', background: 'rgba(0,0,0,0.25)', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-                          {q.status}
+                     <div 
+                      key={q.id} 
+                      className={`card ${statusClass}`}
+                      draggable={activeControlsCardId === q.id && editingQuestionId !== q.id}
+                      onDragStart={(e) => {
+                        setIsDraggingQuestionId(q.id);
+                        e.dataTransfer.setData('text/plain', JSON.stringify({ questionId: q.id, patternId: p.id }));
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (isDraggingQuestionId && isDraggingQuestionId !== q.id) {
+                          setDragOverQuestionId(q.id);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverQuestionId === q.id) {
+                          setDragOverQuestionId(null);
+                        }
+                      }}
+                      onDragEnd={() => {
+                        setIsDraggingQuestionId(null);
+                        setDragOverQuestionId(null);
+                        setDragOverPatternId(null);
+                      }}
+                      onDrop={(e) => {
+                        setDragOverQuestionId(null);
+                        handleDrop(e, q.id, p.id);
+                      }}
+                      style={{
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '12px', 
+                        padding: '16px', 
+                        boxShadow: '4px 4px 0px rgba(0,0,0,0.3)', 
+                        border: dragOverQuestionId === q.id 
+                          ? '2px dashed var(--color-green)' 
+                          : isDraggingQuestionId === q.id 
+                            ? '2px solid #555' 
+                            : '2px solid rgba(0,0,0,0.5)',
+                        opacity: isDraggingQuestionId === q.id ? 0.4 : 1,
+                        cursor: (activeControlsCardId === q.id && editingQuestionId !== q.id) ? 'grab' : 'default',
+                        transform: dragOverQuestionId === q.id ? 'scale(1.02)' : 'none',
+                        transition: 'transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease',
+                      }}
+                    >
+                      {editingQuestionId === q.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <input 
+                            type="text" 
+                            value={editingQuestionTitle} 
+                            onChange={e => setEditingQuestionTitle(e.target.value)}
+                            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff', fontSize: '14px' }}
+                            placeholder="Question Title"
+                            autoFocus
+                          />
+                          <input 
+                            type="text" 
+                            value={editingQuestionUrl} 
+                            onChange={e => setEditingQuestionUrl(e.target.value)}
+                            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff', fontSize: '14px' }}
+                            placeholder="URL (optional)"
+                          />
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                            <button 
+                              type="button" 
+                              onClick={() => handleSaveQuestionEdit(p.id, q.id)} 
+                              style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--color-green)', color: '#000', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Save
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => setEditingQuestionId(null)} 
+                              style={{ padding: '6px 12px', fontSize: '12px', background: '#555', color: '#fff', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div style={{fontSize: '13px', opacity: 0.9, display: 'flex', justifyContent: 'space-between', fontWeight: '600', background: 'rgba(0,0,0,0.1)', padding: '6px 10px', borderRadius: '4px'}}>
-                        <span>Step {q.revisionStep} • Score {calculateQuestionScore(q)}</span>
-                        {q.status !== 'Need to revise' && (
-                          <span style={{ color: daysLeft <= 0 ? '#ffcccc' : 'inherit' }}>
-                            {isPaused ? 'PAUSED' : (daysLeft > 0 ? `${daysLeft} DAYS LEFT` : 'EXPIRED')}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', marginTop: 'auto', flexWrap: 'wrap', gap: '8px' }}>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); handleStatusChange(q.id, 'Solid'); }} style={{ padding: '8px 12px', fontSize: '12px', background: 'var(--color-green)', color: '#000', borderRadius: '4px', border: '1px solid #000', cursor: 'pointer', fontWeight: '900', flex: 1, textTransform: 'uppercase', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)' }}>
-                          Mark Revised
-                        </button>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); handlePauseToggle(q.id, isPaused); }} style={{ padding: '8px', fontSize: '11px', background: isPaused ? 'var(--color-yellow)' : 'rgba(0,0,0,0.6)', color: isPaused ? '#000' : '#fff', borderRadius: '4px', border: '1px solid #000', cursor: 'pointer', fontWeight: 'bold', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)' }}>
-                            {isPaused ? 'Resume' : 'Pause'}
-                          </button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(p.id, q.id); }} style={{ padding: '8px', fontSize: '11px', background: 'var(--color-red)', color: '#fff', borderRadius: '4px', border: '1px solid #000', cursor: 'pointer', fontWeight: 'bold', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)' }}>Remove</button>
-                        </div>
-                      </div>
+                      ) : (
+                        <>
+                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', flex: 1 }}>
+                              <a href={q.url || '#'} target="_blank" rel="noreferrer" style={{fontWeight: '900', fontSize: '1.1rem', lineHeight: '1.3', flex: 1}}>{q.title}</a>
+                              {activeControlsCardId === q.id && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleEditQuestionStart(q)} 
+                                  style={{ 
+                                    background: 'transparent', 
+                                    border: 'none', 
+                                    color: 'inherit', 
+                                    cursor: 'pointer', 
+                                    padding: '2px', 
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    opacity: 0.8,
+                                    transition: 'opacity 0.15s ease'
+                                  }} 
+                                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
+                                  title="Rename/Edit Question"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ padding: '4px 8px', borderRadius: '12px', background: 'rgba(0,0,0,0.25)', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                                {q.status}
+                              </div>
+                              <button 
+                                type="button" 
+                                onClick={() => setActiveControlsCardId(activeControlsCardId === q.id ? null : q.id)}
+                                style={{ 
+                                  background: 'transparent', 
+                                  border: 'none', 
+                                  color: 'inherit', 
+                                  cursor: 'pointer', 
+                                  padding: '4px', 
+                                  display: 'flex', 
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  opacity: activeControlsCardId === q.id ? 1 : 0.5,
+                                  transition: 'opacity 0.15s ease, transform 0.3s ease',
+                                  transform: activeControlsCardId === q.id ? 'rotate(90deg)' : 'none'
+                                }} 
+                                onMouseEnter={(e) => { if (activeControlsCardId !== q.id) e.currentTarget.style.opacity = '1'; }}
+                                onMouseLeave={(e) => { if (activeControlsCardId !== q.id) e.currentTarget.style.opacity = '0.5'; }}
+                                title="Toggle management controls"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0">
+                                  <circle cx="12" cy="5" r="2"></circle>
+                                  <circle cx="12" cy="12" r="2"></circle>
+                                  <circle cx="12" cy="19" r="2"></circle>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div style={{fontSize: '13px', opacity: 0.9, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '600', background: 'rgba(0,0,0,0.1)', padding: '6px 10px', borderRadius: '4px'}}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>Step</span>
+                              {activeControlsCardId === q.id && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleStepChange(p.id, q.id, q.revisionStep, false)}
+                                  disabled={q.revisionStep <= 0 || updatingQuestionSteps[q.id]}
+                                  style={{ 
+                                    padding: '1px 5px', 
+                                    background: 'rgba(0,0,0,0.3)', 
+                                    border: '1px solid #555', 
+                                    color: '#fff', 
+                                    borderRadius: '3px', 
+                                    cursor: (q.revisionStep <= 0 || updatingQuestionSteps[q.id]) ? 'not-allowed' : 'pointer', 
+                                    fontSize: '11px', 
+                                    fontWeight: 'bold', 
+                                    lineHeight: 1,
+                                    opacity: updatingQuestionSteps[q.id] ? 0.4 : 1
+                                  }}
+                                >
+                                  -
+                                </button>
+                              )}
+                              <span style={{ fontWeight: 'bold', minWidth: '10px', textAlign: 'center', opacity: updatingQuestionSteps[q.id] ? 0.4 : 1 }}>{q.revisionStep}</span>
+                              {activeControlsCardId === q.id && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleStepChange(p.id, q.id, q.revisionStep, true)}
+                                  disabled={q.revisionStep >= 6 || updatingQuestionSteps[q.id]}
+                                  style={{ 
+                                    padding: '1px 5px', 
+                                    background: 'rgba(0,0,0,0.3)', 
+                                    border: '1px solid #555', 
+                                    color: '#fff', 
+                                    borderRadius: '3px', 
+                                    cursor: (q.revisionStep >= 6 || updatingQuestionSteps[q.id]) ? 'not-allowed' : 'pointer', 
+                                    fontSize: '11px', 
+                                    fontWeight: 'bold', 
+                                    lineHeight: 1,
+                                    opacity: updatingQuestionSteps[q.id] ? 0.4 : 1
+                                  }}
+                                >
+                                  +
+                                </button>
+                              )}
+                              <span>• Score {calculateQuestionScore(q)}</span>
+                            </div>
+                            {q.status !== 'Need to revise' && (
+                              <span style={{ color: daysLeft <= 0 ? '#ffcccc' : 'inherit' }}>
+                                {isPaused ? 'PAUSED' : (daysLeft > 0 ? `${daysLeft} DAYS LEFT` : 'EXPIRED')}
+                              </span>
+                            )}
+                          </div>
+
+
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', marginTop: 'auto', flexWrap: 'wrap', gap: '8px' }}>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleStatusChange(q.id, 'Solid'); }} style={{ padding: '8px 12px', fontSize: '12px', background: 'var(--color-green)', color: '#000', borderRadius: '4px', border: '1px solid #000', cursor: 'pointer', fontWeight: '900', flex: 1, textTransform: 'uppercase', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)' }}>
+                              Mark Revised
+                            </button>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handlePauseToggle(q.id, isPaused); }} style={{ padding: '8px', fontSize: '11px', background: isPaused ? 'var(--color-yellow)' : 'rgba(0,0,0,0.6)', color: isPaused ? '#000' : '#fff', borderRadius: '4px', border: '1px solid #000', cursor: 'pointer', fontWeight: 'bold', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)' }}>
+                                {isPaused ? 'Resume' : 'Pause'}
+                              </button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteQuestion(p.id, q.id); }} style={{ padding: '8px', fontSize: '11px', background: 'var(--color-red)', color: '#fff', borderRadius: '4px', border: '1px solid #000', cursor: 'pointer', fontWeight: 'bold', boxShadow: '2px 2px 0px rgba(0,0,0,0.5)' }}>Remove</button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
