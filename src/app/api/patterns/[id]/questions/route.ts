@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
+import { recordMasteryScore } from '../../../../../lib/mastery';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { title, url } = await req.json();
+
+    const pattern = await prisma.pattern.findUnique({
+      where: { id }
+    });
+    if (!pattern) {
+      return NextResponse.json({ error: 'Pattern not found' }, { status: 404 });
+    }
 
     const lastQuestion = await prisma.question.findFirst({
       where: { patternId: id },
@@ -24,6 +32,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         position
       }
     });
+
+    await recordMasteryScore(pattern.userId);
+
     return NextResponse.json(question);
   } catch (e) {
     return NextResponse.json({ error: 'Error creating question' }, { status: 500 });

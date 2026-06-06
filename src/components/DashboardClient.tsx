@@ -1,21 +1,32 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pattern, Question } from '@prisma/client';
 import { signOut } from 'next-auth/react';
+import MasteryHistoryChart from './MasteryHistoryChart';
 
 type PatternWithQuestions = Pattern & { questions: Question[] };
+
+interface HistoryPoint {
+  id?: string;
+  score: number;
+  totalQuestions: number;
+  totalScore: number;
+  createdAt: string;
+}
 
 export default function DashboardClient({ 
   initialPatterns, 
   userId, 
   userName, 
-  userImage 
+  userImage,
+  initialHistory = []
 }: { 
   initialPatterns: PatternWithQuestions[], 
   userId: string, 
   userName: string, 
-  userImage: string 
+  userImage: string,
+  initialHistory?: HistoryPoint[]
 }) {
   const [patterns, setPatterns] = useState(initialPatterns);
   const [activeTab, setActiveTab] = useState<'overview' | 'patterns' | 'questions'>('overview');
@@ -460,6 +471,27 @@ export default function DashboardClient({
   const totalScore = patterns.flatMap(p => p.questions).reduce((acc, q) => acc + calculateQuestionScore(q), 0);
   const masteryPercentage = totalQuestions === 0 ? 0 : Math.round(totalScore / totalQuestions);
 
+  const [history, setHistory] = useState<HistoryPoint[]>(initialHistory);
+
+  useEffect(() => {
+    if (totalQuestions === 0) return;
+    const latestPoint = history[history.length - 1];
+    if (
+      !latestPoint ||
+      latestPoint.score !== masteryPercentage ||
+      latestPoint.totalQuestions !== totalQuestions ||
+      latestPoint.totalScore !== totalScore
+    ) {
+      const newPoint: HistoryPoint = {
+        score: masteryPercentage,
+        totalQuestions,
+        totalScore,
+        createdAt: new Date().toISOString()
+      };
+      setHistory(prev => [...prev, newPoint]);
+    }
+  }, [masteryPercentage, totalQuestions, totalScore, history]);
+
   const getScoreBreakdown = () => {
     let longevity = 0;
     let confidence = 0;
@@ -598,8 +630,16 @@ export default function DashboardClient({
               )}
             </div>
           )}
-        </div>        <div className="overview-container">
-          <div className="card stat-card" style={{ maxWidth: '600px', position: 'relative', zIndex: 50 }}>
+        </div>        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '30px',
+          maxWidth: '1100px',
+          margin: '0 auto 30px auto',
+          width: '100%'
+        }}>
+          {/* Pie Chart Card */}
+          <div className="card stat-card" style={{ position: 'relative', zIndex: 50, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '340px', maxWidth: '100%' }}>
             <button 
               onClick={() => setShowMasteryInfo(!showMasteryInfo)} 
               style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -635,30 +675,34 @@ export default function DashboardClient({
                 </div>
               </div>
             </div>
-            <p style={{marginTop: '20px', color: 'var(--text-secondary)'}}>Your mathematically weighted mastery score across {totalQuestions} questions.</p>
+            <p style={{marginTop: '20px', color: 'var(--text-secondary)', fontSize: '14px'}}>Your mathematically weighted mastery score across {totalQuestions} questions.</p>
             
             {showMasteryInfo && (
-              <div style={{ position: 'absolute', top: '45px', right: '15px', background: '#222', border: '1px solid #444', borderRadius: '8px', padding: '20px', width: '380px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', zIndex: 10, textAlign: 'left' }}>
+              <div style={{ position: 'absolute', top: '45px', right: '15px', background: '#222', border: '1px solid #444', borderRadius: '8px', padding: '20px', width: '320px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', zIndex: 10, textAlign: 'left' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                  <h3 style={{ fontSize: '15px', margin: 0, color: '#fff' }}>The Science of Memory</h3>
+                  <h3 style={{ fontSize: '13px', margin: 0, color: '#fff' }}>The Science of Memory</h3>
                   <button onClick={() => setShowMasteryInfo(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '14px', marginTop: '-2px' }}>✖</button>
                 </div>
                 
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
-                  <strong>Spaced Repetition (Ebbinghaus Forgetting Curve):</strong> Science proves that human memory decays exponentially. To build permanent neural pathways, you must review information at precisely expanding intervals just as you're about to forget it (Days 1, 3, 7, 14, 30, 60).
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
+                  <strong>Spaced Repetition:</strong> Memory decays exponentially. Build permanent pathways by reviewing at expanding intervals (Days 1, 3, 7, 14, 30, 60).
                 </p>
 
                 <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
-                  <h3 style={{ fontSize: '15px', margin: '0 0 10px 0', color: 'var(--color-green)' }}>True Mastery Algorithm</h3>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0 }}>
-                    This algorithm mathematically eliminates the "illusion of competence". A question is only 100% mastered if it survives a full 60-day interval.<br/><br/>
-                    <strong>Weighted Factors:</strong><br/>
+                  <h3 style={{ fontSize: '13px', margin: '0 0 10px 0', color: 'var(--color-green)' }}>True Mastery Algorithm</h3>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0 }}>
+                    A question is 100% mastered only if it survives a full 60-day interval.<br/><br/>
                     • <strong>Longevity (75%)</strong>: Day 1 (10pt) → Day 3 (20pt) → Day 7 (30pt) → Day 14 (45pt) → Day 30 (60pt) → Day 60 (75pt).<br/>
                     • <strong>Confidence (25%)</strong>: Dark Green (+25) | Light Green (+18) | Yellow (+8) | Red (0).
                   </p>
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Mastery History Chart Card */}
+          <div className="card" style={{ position: 'relative', zIndex: 50, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '340px', maxWidth: '100%' }}>
+            <MasteryHistoryChart history={history} />
           </div>
         </div>
         

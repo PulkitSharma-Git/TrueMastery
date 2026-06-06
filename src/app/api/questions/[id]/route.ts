@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
+import { recordMasteryScore } from '../../../../lib/mastery';
 
 const INTERVALS = [1, 3, 7, 14, 30, 60];
 
@@ -11,7 +12,10 @@ export async function POST(
     const { status, isPaused } = await request.json();
     const { id } = await params;
 
-    const question = await prisma.question.findUnique({ where: { id } });
+    const question = await prisma.question.findUnique({
+      where: { id },
+      include: { pattern: true }
+    });
     if (!question) {
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
@@ -21,6 +25,7 @@ export async function POST(
         where: { id },
         data: { isPaused },
       });
+      await recordMasteryScore(question.pattern.userId);
       return NextResponse.json(updated);
     }
 
@@ -49,6 +54,8 @@ export async function POST(
       },
     });
 
+    await recordMasteryScore(question.pattern.userId);
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);
@@ -62,7 +69,17 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const question = await prisma.question.findUnique({
+      where: { id },
+      include: { pattern: true }
+    });
+    if (!question) {
+      return NextResponse.json({ error: 'Question not found' }, { status: 404 });
+    }
+
     await prisma.question.delete({ where: { id } });
+    await recordMasteryScore(question.pattern.userId);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
@@ -79,6 +96,14 @@ export async function PATCH(
     const body = await request.json();
     const { title, url, patternId, revisionStep } = body;
 
+    const currentQuestion = await prisma.question.findUnique({
+      where: { id },
+      include: { pattern: true }
+    });
+    if (!currentQuestion) {
+      return NextResponse.json({ error: 'Question not found' }, { status: 404 });
+    }
+
     const data: any = {};
     if (typeof title === 'string') data.title = title;
     if (typeof url === 'string') data.url = url;
@@ -93,21 +118,18 @@ export async function PATCH(
     }
 
     if (typeof revisionStep === 'number') {
-      const currentQuestion = await prisma.question.findUnique({ where: { id } });
-      if (currentQuestion) {
-        data.revisionStep = Math.max(0, Math.min(6, revisionStep));
-        if (data.revisionStep === 0) {
-          data.status = "Need to revise";
-          data.nextReviewDate = new Date();
-        } else {
-          if (currentQuestion.status === "Need to revise") {
-            data.status = "Still Solid";
-          }
-          const daysToAdd = INTERVALS[Math.min(data.revisionStep - 1, INTERVALS.length - 1)];
-          const nextDate = new Date();
-          nextDate.setDate(nextDate.getDate() + daysToAdd);
-          data.nextReviewDate = nextDate;
+      data.revisionStep = Math.max(0, Math.min(6, revisionStep));
+      if (data.revisionStep === 0) {
+        data.status = "Need to revise";
+        data.nextReviewDate = new Date();
+      } else {
+        if (currentQuestion.status === "Need to revise") {
+          data.status = "Still Solid";
         }
+        const daysToAdd = INTERVALS[Math.min(data.revisionStep - 1, INTERVALS.length - 1)];
+        const nextDate = new Date();
+        nextDate.setDate(nextDate.getDate() + daysToAdd);
+        data.nextReviewDate = nextDate;
       }
     }
 
@@ -115,6 +137,8 @@ export async function PATCH(
       where: { id },
       data,
     });
+
+    await recordMasteryScore(currentQuestion.pattern.userId);
 
     return NextResponse.json(updated);
   } catch (error) {

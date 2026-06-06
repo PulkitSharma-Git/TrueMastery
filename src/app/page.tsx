@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import DashboardClient from '../components/DashboardClient';
 import { getServerSession } from 'next-auth';
 import { authOptions } from './api/auth/[...nextauth]/route';
+import { recordMasteryScore } from '../lib/mastery';
 
 import LandingClient from '../components/LandingClient';
 
@@ -26,6 +27,7 @@ export default async function Home() {
   });
 
   const now = new Date();
+  let hasDegraded = false;
   for (const pattern of patterns) {
     for (const q of pattern.questions) {
       if (!(q as any).isPaused && q.nextReviewDate < now && q.status !== 'Need to revise') {
@@ -47,13 +49,37 @@ export default async function Home() {
         });
         q.status = newStatus;
         q.nextReviewDate = nextDate;
+        hasDegraded = true;
       }
     }
   }
 
+  // Record initial score or updated score after degradation
+  await recordMasteryScore(session.user.id);
+
+  // Fetch score history
+  const logs = await prisma.masteryLog.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: 'asc' }
+  });
+
+  const serializedHistory = logs.map(log => ({
+    id: log.id,
+    score: log.score,
+    totalQuestions: log.totalQuestions,
+    totalScore: log.totalScore,
+    createdAt: log.createdAt.toISOString()
+  }));
+
   return (
     <main>
-      <DashboardClient initialPatterns={patterns} userId={session.user.id} userName={session.user.name || ''} userImage={session.user.image || ''} />
+      <DashboardClient 
+        initialPatterns={patterns} 
+        userId={session.user.id} 
+        userName={session.user.name || ''} 
+        userImage={session.user.image || ''} 
+        initialHistory={serializedHistory}
+      />
     </main>
   );
 }

@@ -44,6 +44,7 @@ model User {
   sessions      Session[]
   patterns      Pattern[]
   feedbacks     Feedback[]
+  masteryLogs   MasteryLog[]
 }
 
 model VerificationToken {
@@ -88,3 +89,16 @@ model Feedback {
   status      String   @default("OPEN")
   createdAt   DateTime @default(now())
 }
+
+model MasteryLog {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score          Int      // mastery percentage (0-100)
+  totalQuestions Int
+  totalScore     Int
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
