@@ -10,6 +10,7 @@ In next update:
 
 0 priority
 
+- True Mastery timeline on basis of time Week, Month, Year, All Time
 - On question card Revision notes and stars
 - Feature that tracks how much of revision i have done today, the week, the month compares the last and the best with it. 
 - A graph that tracks the true mastery score over time 

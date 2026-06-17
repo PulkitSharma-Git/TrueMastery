@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface HistoryPoint {
   id?: string;
@@ -8,6 +8,7 @@ interface HistoryPoint {
   totalQuestions: number;
   totalScore: number;
   createdAt: string;
+  isSimulated?: boolean;
 }
 
 interface MasteryHistoryChartProps {
@@ -15,28 +16,195 @@ interface MasteryHistoryChartProps {
 }
 
 export default function MasteryHistoryChart({ history }: MasteryHistoryChartProps) {
+  const [timeRange, setTimeRange] = useState<'Week' | 'Month' | 'Year' | 'All Time'>('All Time');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
-  if (!history || history.length === 0) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClose = () => setIsOpen(false);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, [isOpen]);
+
+  // Apply filtering based on selected range
+  let filteredHistory = [...history];
+  if (timeRange !== 'All Time') {
+    const cutoff = new Date();
+    if (timeRange === 'Week') cutoff.setDate(cutoff.getDate() - 7);
+    else if (timeRange === 'Month') cutoff.setDate(cutoff.getDate() - 30);
+    else if (timeRange === 'Year') cutoff.setDate(cutoff.getDate() - 365);
+
+    const pointsInPeriod = history.filter(p => new Date(p.createdAt) >= cutoff);
+    const pointsBeforePeriod = history.filter(p => new Date(p.createdAt) < cutoff);
+
+    if (pointsInPeriod.length === 0) {
+      if (pointsBeforePeriod.length > 0) {
+        const lastPoint = pointsBeforePeriod[pointsBeforePeriod.length - 1];
+        filteredHistory = [
+          {
+            ...lastPoint,
+            createdAt: cutoff.toISOString(),
+            isSimulated: true,
+          },
+          {
+            ...lastPoint,
+            createdAt: new Date().toISOString(),
+            isSimulated: true,
+          }
+        ];
+      } else {
+        filteredHistory = [];
+      }
+    } else {
+      if (pointsBeforePeriod.length > 0) {
+        const lastPoint = pointsBeforePeriod[pointsBeforePeriod.length - 1];
+        filteredHistory = [
+          {
+            ...lastPoint,
+            createdAt: cutoff.toISOString(),
+            isSimulated: true,
+          },
+          ...pointsInPeriod
+        ];
+      } else {
+        filteredHistory = pointsInPeriod;
+      }
+    }
+  }
+
+  // Render variables
+  const pointsCount = filteredHistory.length;
+
+  // Render dropdown control along with header
+  const renderHeader = () => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+      <h3 style={{ fontSize: '15px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-green)' }}></span>
+        True Mastery Timeline
+      </h3>
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(!isOpen);
+          }}
+          style={{
+            background: '#222',
+            color: '#fff',
+            border: `2px solid ${isOpen ? 'var(--color-green)' : '#333'}`,
+            borderRadius: '6px',
+            padding: '6px 30px 6px 12px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-body)',
+            outline: 'none',
+            transition: 'all 0.15s ease',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.5)',
+            textTransform: 'none'
+          }}
+          onMouseEnter={(e) => {
+            if (!isOpen) e.currentTarget.style.borderColor = '#555';
+          }}
+          onMouseLeave={(e) => {
+            if (!isOpen) e.currentTarget.style.borderColor = '#333';
+          }}
+        >
+          {timeRange}
+          <span style={{
+            position: 'absolute',
+            right: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+            color: 'var(--text-secondary)'
+          }}>
+            <svg fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' height='10' width='10' viewBox='0 0 24 24'>
+              <polyline points='6 9 12 15 18 9'></polyline>
+            </svg>
+          </span>
+        </button>
+
+        {isOpen && (
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            right: 0,
+            background: '#1e1e1e',
+            border: '2px solid #333',
+            borderRadius: '6px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+            zIndex: 100,
+            minWidth: '120px',
+            overflow: 'hidden'
+          }}>
+            {(['Week', 'Month', 'Year', 'All Time'] as const).map((range) => {
+              const isSelected = timeRange === range;
+              return (
+                <div
+                  key={range}
+                  onClick={() => {
+                    setTimeRange(range);
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    color: isSelected ? 'var(--color-green)' : 'var(--text-secondary)',
+                    background: isSelected ? 'rgba(46, 204, 113, 0.08)' : 'transparent',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    transition: 'all 0.15s ease',
+                    textAlign: 'left'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = isSelected ? 'rgba(46, 204, 113, 0.12)' : 'rgba(255,255,255,0.05)';
+                    e.currentTarget.style.color = isSelected ? 'var(--color-green)' : '#fff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = isSelected ? 'rgba(46, 204, 113, 0.08)' : 'transparent';
+                    e.currentTarget.style.color = isSelected ? 'var(--color-green)' : 'var(--text-secondary)';
+                  }}
+                >
+                  {range}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (!filteredHistory || pointsCount === 0) {
     return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '240px',
-        color: 'var(--text-secondary)',
-        border: '1px dashed #444',
-        borderRadius: '8px',
-        padding: '20px',
-        textAlign: 'center'
-      }}>
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '10px', opacity: 0.5 }}>
-          <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M18.75 9l-5.25 5.25-3-3L7.5 14.25" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <p style={{ fontSize: '14px', fontWeight: '500' }}>No history recorded yet.</p>
-        <p style={{ fontSize: '11px', marginTop: '4px', opacity: 0.7 }}>Mark a question as revised or add questions to see your progress graph!</p>
+      <div style={{ position: 'relative', width: '100%' }}>
+        {renderHeader()}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '240px',
+          color: 'var(--text-secondary)',
+          border: '1px dashed #444',
+          borderRadius: '8px',
+          padding: '20px',
+          textAlign: 'center'
+        }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '10px', opacity: 0.5 }}>
+            <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M18.75 9l-5.25 5.25-3-3L7.5 14.25" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <p style={{ fontSize: '14px', fontWeight: '500' }}>No history recorded yet.</p>
+          <p style={{ fontSize: '11px', marginTop: '4px', opacity: 0.7 }}>Mark a question as revised or add questions to see your progress graph!</p>
+        </div>
       </div>
     );
   }
@@ -50,11 +218,8 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingY * 2;
 
-  // Render variables
-  const pointsCount = history.length;
-
   // Calculate coordinates for points
-  const chartPoints = history.map((point, index) => {
+  const chartPoints = filteredHistory.map((point, index) => {
     // X Coordinate: distribute points evenly
     let x = paddingX;
     if (pointsCount > 1) {
@@ -115,13 +280,11 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
 
   // Grid line percentages
   const gridLines = [0, 25, 50, 75, 100];
+  const showDots = pointsCount <= 30;
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
-      <h3 style={{ fontSize: '15px', marginBottom: '15px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-green)' }}></span>
-        True Mastery Timeline
-      </h3>
+      {renderHeader()}
 
       <div style={{ position: 'relative', background: 'rgba(26,26,26,0.3)', border: '1px solid #333', borderRadius: '8px', padding: '10px 5px', overflow: 'hidden' }}>
         <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
@@ -215,10 +378,10 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
               <circle
                 cx={point.x}
                 cy={point.y}
-                r={hoveredIndex === idx ? '6' : '3.5'}
+                r={hoveredIndex === idx ? 6 : (showDots ? 3.5 : 0)}
                 fill={hoveredIndex === idx ? 'var(--color-green)' : '#fff'}
                 stroke="var(--bg-color)"
-                strokeWidth="1.5"
+                strokeWidth={hoveredIndex === idx ? 1.5 : (showDots ? 1.5 : 0)}
                 style={{
                   transition: 'all 0.15s ease',
                   cursor: 'pointer',
@@ -270,7 +433,9 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
             textAlign: 'left'
           }}>
             <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {formatFullDate(chartPoints[hoveredIndex].createdAt)}
+              {chartPoints[hoveredIndex].isSimulated 
+                ? `Baseline (${formatDate(chartPoints[hoveredIndex].createdAt)})` 
+                : formatFullDate(chartPoints[hoveredIndex].createdAt)}
             </div>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-green)', display: 'flex', alignItems: 'baseline', gap: '3px' }}>
               {chartPoints[hoveredIndex].score}% <span style={{ fontSize: '10px', color: '#fff', fontWeight: 'normal' }}>Mastery</span>
@@ -285,7 +450,9 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', padding: '0 5px' }}>
         <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-          Showing last {pointsCount} checkpoints
+          {timeRange === 'All Time'
+            ? `Showing last ${pointsCount} checkpoints`
+            : `Showing checkpoints for the past ${timeRange.toLowerCase()} (${pointsCount})`}
         </span>
         <span style={{ fontSize: '10px', color: 'var(--color-green)', fontWeight: 'bold' }}>
           Target: 100% Mastery
