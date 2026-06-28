@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Feedback } from '@prisma/client';
-import { signOut } from 'next-auth/react';
 import Link from 'next/link';
+import Header from './Header';
+import Card from './Card';
 
 export default function FeedbackClient({
   initialFeedbacks,
@@ -45,26 +46,42 @@ export default function FeedbackClient({
 
   return (
     <div>
-      <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: '1px solid #333', marginBottom: '30px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <h1 className="title" style={{ margin: 0, fontSize: '24px' }}>Ask Feature / Bug Report</h1>
-          <Link href="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '14px', border: '1px solid #444', padding: '6px 12px', borderRadius: '6px', transition: 'background 0.2s' }}>
-            ← Back to Dashboard
+      <Header
+        title="Ask Feature / Bug Report"
+        userName={userName}
+        userImage={userImage}
+        leftAddon={
+          <Link 
+            href="/" 
+            style={{ 
+              color: 'rgba(255, 255, 255, 0.45)', 
+              textDecoration: 'none', 
+              fontSize: '12px', 
+              fontWeight: '700',
+              transition: 'color 0.2s ease',
+              marginLeft: '12px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.45)';
+            }}
+          >
+            ← Back
           </Link>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {userImage && <img src={userImage} alt="Avatar" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />}
-            <span style={{ fontWeight: 'bold' }}>{userName.split(' ')[0]}</span>
-          </div>
-          <button onClick={() => signOut()} style={{ padding: '6px 12px', background: '#333', color: '#fff', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Sign Out</button>
-        </div>
-      </div>
+        }
+      />
 
       <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '40px' }}>
         
         {/* Form Section */}
-        <div className="card" style={{ padding: '30px', border: '1px solid #333' }}>
+        <Card className="card" style={{ padding: '30px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
           <h2 style={{ marginBottom: '20px' }}>Submit a Request</h2>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <div>
@@ -99,7 +116,7 @@ export default function FeedbackClient({
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
           </form>
-        </div>
+        </Card>
 
         {/* List Section */}
         <div>
@@ -109,7 +126,7 @@ export default function FeedbackClient({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {feedbacks.map((f) => (
-                <div key={f.id} className="card" style={{ border: '1px solid #333', padding: '20px' }}>
+                <Card key={f.id} className="card" style={{ border: '1px solid rgba(255, 255, 255, 0.08)', padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <span style={{ 
@@ -140,7 +157,7 @@ export default function FeedbackClient({
                   <div style={{ marginTop: '15px', fontSize: '12px', color: '#666' }}>
                     Submitted on {new Date(f.createdAt).toLocaleDateString()}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}

@@ -61,6 +61,16 @@ button:active {
 .btn-primary {
   background-color: var(--text-primary);
   color: var(--bg-color);
+  border: 1px solid var(--text-primary);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.12);
+}
+
+.btn-primary:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.22);
 }
 
 .btn-green {
@@ -140,18 +150,28 @@ button:active {
 
 .tabs {
   display: flex;
-  gap: 10px;
-  margin-bottom: 30px;
+  gap: 12px;
+  margin: 0 auto 30px auto;
+  max-width: 1100px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .btn-secondary {
-  background-color: transparent;
-  color: var(--text-primary);
-  border: 1px solid #333;
+  background-color: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .btn-secondary:hover {
-  background-color: #333;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .overview-container {
@@ -230,5 +250,80 @@ button:active {
 
 .back {
   transform: rotateY(180deg);
+}
+
+/* Mobile Responsiveness & Overflow Prevention */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 20px 12px !important;
+  }
+  
+  .header {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: center !important;
+    padding: 60px 20px !important;
+    margin-bottom: 24px !important;
+  }
+
+  .tabs {
+    gap: 6px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .tabs button {
+    flex: 1 !important;
+    padding: 10px 4px !important;
+    font-size: 11px !important;
+    letter-spacing: 0px !important;
+    white-space: nowrap;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+    gap: 16px !important;
+  }
+
+  .header-logo {
+    font-size: 28px !important;
+    color: #ffffff !important;
+    letter-spacing: -0.03em !important;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.45) !important;
+  }
+
+  .header-feedback-link {
+    font-size: 10px !important;
+    color: rgba(255, 255, 255, 0.25) !important;
+    letter-spacing: 0.2px !important;
+  }
+
+  .header-signout-btn {
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: rgba(255, 255, 255, 0.35) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    font-weight: normal !important;
+    font-size: 11px !important;
+    box-shadow: none !important;
+  }
+
+  .header-right-desktop {
+    display: none !important;
+  }
+  .header-right-mobile-bar {
+    display: flex !important;
+  }
+}
+
+.header-right-desktop {
+  display: flex;
+}
+
+.header-right-mobile-bar {
+  display: none;
 }
 
