@@ -139,7 +139,7 @@ export default function QuestionsTab({
                   isDraggingQuestion={isDraggingQuestionId === q.id}
                   dragOverQuestionId={dragOverQuestionId}
                   onToggleActive={() => setActiveControlsCardId(activeControlsCardId === q.id ? null : q.id)}
-                  onSaveEdit={onSaveQuestionEdit}
+                  onSaveEdit={(id, title, url) => onSaveQuestionEdit(p.id, id, title, url)}
                   onDelete={() => onDeleteQuestion(p.id, q.id)}
                   onPauseToggle={onPauseToggle}
                   onStatusChange={onStatusChange}
