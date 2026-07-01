@@ -477,7 +477,7 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
 
           {/* X-Axis labels (dates) */}
           {xAxisTicks.map((tick, idx) => {
-            let textAnchor = "middle";
+            let textAnchor: 'start' | 'middle' | 'end' = 'middle';
             if (idx === 0) textAnchor = "start";
             else if (idx === xAxisTicks.length - 1) textAnchor = "end";
             return (
