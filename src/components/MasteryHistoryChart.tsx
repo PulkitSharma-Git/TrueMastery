@@ -100,25 +100,33 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
       const result: HistoryPoint[] = [];
 
       // Prepend simulated start point if there's history before the period
+      // and the first actual point is not already near the start boundary
       if (pointsBeforePeriod.length > 0) {
         const lastPoint = pointsBeforePeriod[pointsBeforePeriod.length - 1];
-        result.push({
-          ...lastPoint,
-          createdAt: new Date(effectiveMinTime).toISOString(),
-          isSimulated: true,
-        });
+        const firstPointInPeriod = pointsInPeriod[0];
+        const timeDiffStart = new Date(firstPointInPeriod.createdAt).getTime() - effectiveMinTime;
+        if (timeDiffStart > 300000) {
+          result.push({
+            ...lastPoint,
+            createdAt: new Date(effectiveMinTime).toISOString(),
+            isSimulated: true,
+          });
+        }
       }
 
       // Add all points within the period
       result.push(...pointsInPeriod);
 
-      // Append simulated end point at "now"
+      // Append simulated end point at "now" if the last actual point is not already near the end boundary
       const lastPoint = pointsInPeriod[pointsInPeriod.length - 1];
-      result.push({
-        ...lastPoint,
-        createdAt: new Date(maxTime).toISOString(),
-        isSimulated: true,
-      });
+      const timeDiffEnd = maxTime - new Date(lastPoint.createdAt).getTime();
+      if (timeDiffEnd > 300000) {
+        result.push({
+          ...lastPoint,
+          createdAt: new Date(maxTime).toISOString(),
+          isSimulated: true,
+        });
+      }
 
       filteredHistory = result;
     }
@@ -127,11 +135,14 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
     if (history.length > 0) {
       const result = [...history];
       const lastPoint = history[history.length - 1];
-      result.push({
-        ...lastPoint,
-        createdAt: new Date(maxTime).toISOString(),
-        isSimulated: true,
-      });
+      const timeDiffEnd = maxTime - new Date(lastPoint.createdAt).getTime();
+      if (timeDiffEnd > 300000) {
+        result.push({
+          ...lastPoint,
+          createdAt: new Date(maxTime).toISOString(),
+          isSimulated: true,
+        });
+      }
       filteredHistory = result;
     } else {
       filteredHistory = [];
@@ -462,10 +473,10 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
               <circle
                 cx={point.x}
                 cy={point.y}
-                r={hoveredIndex === idx ? 6 : (showDots ? 3.5 : 0)}
+                r={hoveredIndex === idx ? 6 : (showDots && !point.isSimulated ? 3.5 : 0)}
                 fill={hoveredIndex === idx ? 'var(--color-green)' : '#fff'}
                 stroke="var(--bg-color)"
-                strokeWidth={hoveredIndex === idx ? 1.5 : (showDots ? 1.5 : 0)}
+                strokeWidth={hoveredIndex === idx ? 1.5 : (showDots && !point.isSimulated ? 1.5 : 0)}
                 style={{
                   transition: 'all 0.15s ease',
                   cursor: 'pointer',
