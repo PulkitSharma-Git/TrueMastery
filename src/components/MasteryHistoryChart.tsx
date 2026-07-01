@@ -2,6 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 
+// Format date helpers
+const formatDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const formatFullDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 interface HistoryPoint {
   id?: string;
   score: number;
@@ -27,16 +43,40 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
     return () => window.removeEventListener('click', handleClose);
   }, [isOpen]);
 
-  // Apply filtering based on selected range
-  let filteredHistory = [...history];
-  if (timeRange !== 'All Time') {
-    const cutoff = new Date();
-    if (timeRange === 'Week') cutoff.setDate(cutoff.getDate() - 7);
-    else if (timeRange === 'Month') cutoff.setDate(cutoff.getDate() - 30);
-    else if (timeRange === 'Year') cutoff.setDate(cutoff.getDate() - 365);
+  // Apply filtering based on selected range and time-based spacing
+  const now = new Date();
+  const maxTime = now.getTime();
+  let minTime = maxTime;
 
-    const pointsInPeriod = history.filter(p => new Date(p.createdAt) >= cutoff);
-    const pointsBeforePeriod = history.filter(p => new Date(p.createdAt) < cutoff);
+  if (timeRange === 'Week') {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    minTime = cutoff.getTime();
+  } else if (timeRange === 'Month') {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    minTime = cutoff.getTime();
+  } else if (timeRange === 'Year') {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 365);
+    minTime = cutoff.getTime();
+  } else {
+    // All Time
+    if (history.length > 0) {
+      minTime = new Date(history[0].createdAt).getTime();
+    } else {
+      minTime = maxTime - 86400000; // default 1 day ago
+    }
+  }
+
+  // Prevent division by zero or extremely small intervals
+  const effectiveMinTime = (maxTime - minTime < 1000) ? minTime - 86400000 : minTime;
+
+  let filteredHistory: HistoryPoint[] = [];
+
+  if (timeRange !== 'All Time') {
+    const pointsInPeriod = history.filter(p => new Date(p.createdAt).getTime() >= effectiveMinTime);
+    const pointsBeforePeriod = history.filter(p => new Date(p.createdAt).getTime() < effectiveMinTime);
 
     if (pointsInPeriod.length === 0) {
       if (pointsBeforePeriod.length > 0) {
@@ -44,12 +84,12 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
         filteredHistory = [
           {
             ...lastPoint,
-            createdAt: cutoff.toISOString(),
+            createdAt: new Date(effectiveMinTime).toISOString(),
             isSimulated: true,
           },
           {
             ...lastPoint,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(maxTime).toISOString(),
             isSimulated: true,
           }
         ];
@@ -57,24 +97,52 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
         filteredHistory = [];
       }
     } else {
+      const result: HistoryPoint[] = [];
+
+      // Prepend simulated start point if there's history before the period
       if (pointsBeforePeriod.length > 0) {
         const lastPoint = pointsBeforePeriod[pointsBeforePeriod.length - 1];
-        filteredHistory = [
-          {
-            ...lastPoint,
-            createdAt: cutoff.toISOString(),
-            isSimulated: true,
-          },
-          ...pointsInPeriod
-        ];
-      } else {
-        filteredHistory = pointsInPeriod;
+        result.push({
+          ...lastPoint,
+          createdAt: new Date(effectiveMinTime).toISOString(),
+          isSimulated: true,
+        });
       }
+
+      // Add all points within the period
+      result.push(...pointsInPeriod);
+
+      // Append simulated end point at "now"
+      const lastPoint = pointsInPeriod[pointsInPeriod.length - 1];
+      result.push({
+        ...lastPoint,
+        createdAt: new Date(maxTime).toISOString(),
+        isSimulated: true,
+      });
+
+      filteredHistory = result;
+    }
+  } else {
+    // All Time
+    if (history.length > 0) {
+      const result = [...history];
+      const lastPoint = history[history.length - 1];
+      result.push({
+        ...lastPoint,
+        createdAt: new Date(maxTime).toISOString(),
+        isSimulated: true,
+      });
+      filteredHistory = result;
+    } else {
+      filteredHistory = [];
     }
   }
 
   // Render variables
   const pointsCount = filteredHistory.length;
+  const actualPointsCount = timeRange === 'All Time'
+    ? history.length
+    : history.filter(p => new Date(p.createdAt).getTime() >= effectiveMinTime).length;
 
   // Render dropdown control along with header
   const renderHeader = () => (
@@ -218,14 +286,14 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingY * 2;
 
-  // Calculate coordinates for points
+  // Calculate coordinates for points based on time
   const chartPoints = filteredHistory.map((point, index) => {
-    // X Coordinate: distribute points evenly
+    const t = new Date(point.createdAt).getTime();
     let x = paddingX;
-    if (pointsCount > 1) {
-      x = paddingX + (index * chartWidth) / (pointsCount - 1);
+    if (maxTime > effectiveMinTime) {
+      x = paddingX + ((t - effectiveMinTime) / (maxTime - effectiveMinTime)) * chartWidth;
     } else {
-      x = width / 2; // Center if only one point
+      x = paddingX + chartWidth / 2;
     }
 
     // Y Coordinate: inverted scale, where 100% is top (paddingY) and 0% is bottom (height - paddingY)
@@ -234,6 +302,21 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
 
     return { x, y, ...point, index };
   });
+
+  // Generate X-Axis labels at regular time intervals
+  const xAxisTicks: { x: number; label: string }[] = [];
+  if (filteredHistory.length > 0) {
+    const ticksCount = 4;
+    for (let i = 0; i < ticksCount; i++) {
+      const ratio = i / (ticksCount - 1);
+      const tickTime = effectiveMinTime + ratio * (maxTime - effectiveMinTime);
+      const x = paddingX + ratio * chartWidth;
+      xAxisTicks.push({
+        x,
+        label: formatDate(new Date(tickTime).toISOString())
+      });
+    }
+  }
 
   // Create path for the stroke
   let linePath = '';
@@ -262,21 +345,7 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
     areaPath = `${linePath} L ${chartPoints[pointsCount - 1].x} ${height - paddingY} L ${chartPoints[0].x} ${height - paddingY} Z`;
   }
 
-  // Format date helper
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  };
 
-  const formatFullDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   // Grid line percentages
   const gridLines = [0, 25, 50, 75, 100];
@@ -301,6 +370,21 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
               <stop offset="100%" stopColor="var(--color-green)" stopOpacity="0.0" />
             </linearGradient>
           </defs>
+
+          {/* Vertical Grid lines */}
+          {xAxisTicks.map((tick, idx) => (
+            <line
+              key={`v-grid-${idx}`}
+              x1={tick.x}
+              y1={paddingY}
+              x2={tick.x}
+              y2={height - paddingY}
+              stroke="var(--text-secondary)"
+              strokeDasharray="4 4"
+              strokeWidth="1"
+              style={{ opacity: 0.08 }}
+            />
+          ))}
 
           {/* Grid lines & Labels */}
           {gridLines.map((percent) => {
@@ -392,26 +476,24 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
           ))}
 
           {/* X-Axis labels (dates) */}
-          {pointsCount > 0 && (() => {
-            // Decimate labels if too many points to avoid crowding
-            const step = Math.max(1, Math.ceil(pointsCount / 5));
-            return chartPoints.map((point, idx) => {
-              if (idx % step !== 0 && idx !== pointsCount - 1) return null;
-              return (
-                <text
-                  key={idx}
-                  x={point.x}
-                  y={height - paddingY + 16}
-                  fill="var(--text-secondary)"
-                  fontSize="9px"
-                  textAnchor="middle"
-                  style={{ opacity: 0.8 }}
-                >
-                  {formatDate(point.createdAt)}
-                </text>
-              );
-            });
-          })()}
+          {xAxisTicks.map((tick, idx) => {
+            let textAnchor = "middle";
+            if (idx === 0) textAnchor = "start";
+            else if (idx === xAxisTicks.length - 1) textAnchor = "end";
+            return (
+              <text
+                key={`x-label-${idx}`}
+                x={tick.x}
+                y={height - paddingY + 16}
+                fill="var(--text-secondary)"
+                fontSize="9px"
+                textAnchor={textAnchor}
+                style={{ opacity: 0.8 }}
+              >
+                {tick.label}
+              </text>
+            );
+          })}
         </svg>
 
         {/* HTML Tooltip overlay */}
@@ -434,7 +516,7 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
           }}>
             <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {chartPoints[hoveredIndex].isSimulated 
-                ? `Baseline (${formatDate(chartPoints[hoveredIndex].createdAt)})` 
+                ? (hoveredIndex === 0 ? `Baseline (${formatDate(chartPoints[hoveredIndex].createdAt)})` : `Current (${formatDate(chartPoints[hoveredIndex].createdAt)})`)
                 : formatFullDate(chartPoints[hoveredIndex].createdAt)}
             </div>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-green)', display: 'flex', alignItems: 'baseline', gap: '3px' }}>
@@ -451,8 +533,8 @@ export default function MasteryHistoryChart({ history }: MasteryHistoryChartProp
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', padding: '0 5px' }}>
         <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
           {timeRange === 'All Time'
-            ? `Showing last ${pointsCount} checkpoints`
-            : `Showing checkpoints for the past ${timeRange.toLowerCase()} (${pointsCount})`}
+            ? `Showing history across ${actualPointsCount} updates`
+            : `Showing timeline for the past ${timeRange.toLowerCase()} (${actualPointsCount} updates)`}
         </span>
         <span style={{ fontSize: '10px', color: 'var(--color-green)', fontWeight: 'bold' }}>
           Target: 100% Mastery
