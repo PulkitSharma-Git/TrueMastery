@@ -1,6 +1,16 @@
 import { prisma } from './prisma';
 
-export function calculateQuestionScore(q: { revisionStep: number; status: string }) {
+export function calculateQuestionScoreBreakdown(q: { revisionStep: number; status: string }) {
+  let colorScore = 0;
+  if (q.status === 'Solid') colorScore = 25;
+  else if (q.status === 'Still Solid') colorScore = 18;
+  else if (q.status === 'Maybe U remember') colorScore = 8;
+
+  // If confidence is 0 (e.g. 'Need to revise'), longevity score is also 0 until reviewed
+  if (colorScore === 0) {
+    return { longevityScore: 0, colorScore: 0, totalScore: 0 };
+  }
+
   let longevityScore = 0;
   if (q.revisionStep >= 6) longevityScore = 75;
   else if (q.revisionStep === 5) longevityScore = 60;
@@ -9,12 +19,11 @@ export function calculateQuestionScore(q: { revisionStep: number; status: string
   else if (q.revisionStep === 2) longevityScore = 20;
   else if (q.revisionStep === 1) longevityScore = 10;
 
-  let colorScore = 0;
-  if (q.status === 'Solid') colorScore = 25;
-  else if (q.status === 'Still Solid') colorScore = 18;
-  else if (q.status === 'Maybe U remember') colorScore = 8;
+  return { longevityScore, colorScore, totalScore: longevityScore + colorScore };
+}
 
-  return longevityScore + colorScore;
+export function calculateQuestionScore(q: { revisionStep: number; status: string }) {
+  return calculateQuestionScoreBreakdown(q).totalScore;
 }
 
 export async function recordMasteryScore(userId: string) {

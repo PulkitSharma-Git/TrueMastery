@@ -8,7 +8,7 @@ import ConfirmDialog from './dashboard/ConfirmDialog';
 import DashboardOverview from './dashboard/DashboardOverview';
 import PatternsTab from './dashboard/PatternsTab';
 import QuestionsTab from './dashboard/QuestionsTab';
-import { calculateQuestionScore } from '../lib/mastery';
+import { calculateQuestionScore, calculateQuestionScoreBreakdown } from '../lib/mastery';
 
 type PatternWithQuestions = Pattern & { questions: Question[] };
 
@@ -71,19 +71,7 @@ export default function DashboardClient({
     let longevity = 0;
     let confidence = 0;
     flatQuestions.forEach(q => {
-      let longevityScore = 0;
-      if (q.revisionStep >= 6) longevityScore = 75;
-      else if (q.revisionStep === 5) longevityScore = 60;
-      else if (q.revisionStep === 4) longevityScore = 45;
-      else if (q.revisionStep === 3) longevityScore = 30;
-      else if (q.revisionStep === 2) longevityScore = 20;
-      else if (q.revisionStep === 1) longevityScore = 10;
-      
-      let colorScore = 0;
-      if (q.status === 'Solid') colorScore = 25;
-      else if (q.status === 'Still Solid') colorScore = 18;
-      else if (q.status === 'Maybe U remember') colorScore = 8;
-      
+      const { longevityScore, colorScore } = calculateQuestionScoreBreakdown(q);
       longevity += longevityScore;
       confidence += colorScore;
     });

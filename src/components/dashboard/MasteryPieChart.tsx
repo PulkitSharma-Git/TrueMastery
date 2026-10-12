@@ -91,7 +91,8 @@ export default function MasteryPieChart({
             <p style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)', lineHeight: '1.6', margin: 0 }}>
               A question is 100% mastered only if it survives a full 60-day interval.<br/><br/>
               • <strong>Longevity (75%)</strong>: Day 1 (10pt) → Day 3 (20pt) → Day 7 (30pt) → Day 14 (45pt) → Day 30 (60pt) → Day 60 (75pt).<br/>
-              • <strong>Confidence (25%)</strong>: Dark Green (+25) | Light Green (+18) | Yellow (+8) | Red (0).
+              • <strong>Confidence (25%)</strong>: Dark Green (+25) | Light Green (+18) | Yellow (+8) | Red (0).<br/><br/>
+              <em>Note: When confidence is 0 (Need to revise), longevity points are frozen at 0 until the question is revised.</em>
             </p>
           </div>
         </div>
